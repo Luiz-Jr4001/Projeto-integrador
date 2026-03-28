@@ -118,7 +118,7 @@ with col4:
 
 with col5:
     total_gap = total_meta - total_realizado
-    status_gap = "🔴 Abaixo" if total_gap > 0 else "🟢 Batida"
+    status_gap = "🔴Abaixo" if total_gap > 0 else "🟢Batida"
     st.metric(
         label="Status da Meta", 
         value=status_gap, 
