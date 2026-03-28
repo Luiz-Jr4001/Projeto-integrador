@@ -94,26 +94,44 @@ with st.expander("📄 Visualizar Tabela de Dados"):
 st.title("🏭 Dashboard de Performance Industrial")
 st.markdown(f"Exibindo dados de **{selecao_data[0] if isinstance(selecao_data, tuple) else selecao_data}** até **{selecao_data[1] if isinstance(selecao_data, tuple) and len(selecao_data)==2 else '---'}**")
 
-# KPIs Consolidados
+# --- KPIs Consolidados---
 col1, col2, col3, col4 = st.columns(4)
 
 total_realizado = df_filtrado['Producao_Realizada'].sum()
 total_meta = df_filtrado['Meta'].sum()
 avg_eficiencia = df_filtrado['Eficiencia_Produtiva'].mean()
-total_refugo = df_filtrado['Refugo'].sum()
-avg_retrabalho = (df_filtrado['Retrabalho'].sum() / total_realizado) * 100 if total_realizado > 0 else 0
+
+# Cálculos de Retrabalho
+total_retrabalho_pcs = df_filtrado['Retrabalho'].sum()
+avg_retrabalho = (total_retrabalho_pcs / total_realizado) * 100 if total_realizado > 0 else 0
+
+# Cálculos de Refugo (Novo cálculo de porcentagem)
+total_refugo_pcs = df_filtrado['Refugo'].sum()
+avg_refugo = (total_refugo_pcs / total_realizado) * 100 if total_realizado > 0 else 0
 
 with col1:
-    st.metric("Produção Total", f"{float(total_realizado):,.0f}".replace(",", "."), f"{total_realizado - total_meta:,.0f} vs Meta")
+    st.metric("Produção Total", 
+              f"{float(total_realizado):,.0f}".replace(",", "."), 
+              f"{total_realizado - total_meta:,.0f} vs Meta")
+
 with col2:
-    st.metric("Eficiência Líquida Média", f"{avg_eficiencia:.1f}%", delta=f"{avg_eficiencia - 85:.1f}%", delta_color="normal" if avg_eficiencia >= 85 else "inverse")
+    st.metric("Eficiência Líquida Média", 
+              f"{avg_eficiencia:.1f}%", 
+              delta=f"{avg_eficiencia - 85:.1f}%", 
+              delta_color="normal" if avg_eficiencia >= 85 else "inverse")
+
 with col3:
-    st.metric("Taxa de Retrabalho", f"{avg_retrabalho:.1f}%", f"{df_filtrado['Retrabalho'].sum()} peças", delta_color="inverse")
+    st.metric("Taxa de Retrabalho", 
+              f"{avg_retrabalho:.1f}%", 
+              f"{total_retrabalho_pcs} peças", 
+              delta_color="inverse")
+
 with col4:
-    st.metric("Total de Refugo", f"{total_refugo}", "Peças descartadas", delta_color="inverse")
-
-st.markdown("---")
-
+    # Agora exibindo Porcentagem no valor principal e Peças no delta
+    st.metric("Taxa de Refugo", 
+              f"{avg_refugo:.1f}%", 
+              f"{total_refugo_pcs} peças", 
+              delta_color="inverse")
 # 5. GRÁFICOS PRINCIPAIS
 col_a, col_b = st.columns([2, 1])
 
