@@ -3,208 +3,177 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from datetime import datetime
 
-# Configuração da página (deve ser a primeira linha após os imports)
-st.set_page_config(layout="wide", page_title="Dashboard de Produção Industrial")
+# 1. CONFIGURAÇÃO DA PÁGINA
+st.set_page_config(layout="wide", page_title="Gestão Industrial 4.0", page_icon="🏭")
 
-# --- SIMULAÇÃO DE DADOS ---
-# Em um cenário real, você carregaria de um CSV, Excel ou Banco de Dados
-# pd.read_csv('dados_producao.csv')
-
+# 2. GERAÇÃO DE DADOS (BASE EXPANDIDA PARA 30 DIAS)
+@st.cache_data # Cache para não regerar dados aleatórios a cada clique
 def get_data():
+    np.random.seed(42)
+    dias = [f"{i:02d}/03" for i in range(1, 32)]
+    
     data = {
-        'Dia': [f'0{i}/10' if i < 10 else f'{i}/10' for i in range(1, 11)],
-        'Meta': [1500] * 10,
-        'Producao_Realizada': [1200, 1450, 1550, 1100, 1300, 1600, 900, 1480, 1520, 1180],
-        'Retrabalho': [150, 80, 50, 200, 100, 40, 250, 90, 60, 160],
-        'Refugo': [80, 20, 10, 120, 60, 15, 180, 40, 30, 90]
+        'Dia': dias,
+        'Meta': [1500] * 31,
+        'Producao_Realizada': np.random.normal(1380, 120, 31).astype(int),
+        'Retrabalho': np.random.poisson(90, 31),
+        'Refugo': np.random.poisson(45, 31),
+        'Minutos_Parados': np.random.exponential(35, 31).astype(int),
+        'Temperatura_C': np.random.uniform(68, 92, 31).round(1),
+        'Turno_Principal': np.random.choice(['Manhã', 'Tarde', 'Noite'], 31)
     }
+    
     df = pd.DataFrame(data)
     
-    # --- CÁLCULO DOS KPIs (FÓRMULAS FORNECIDAS) ---
+    # Cálculos de KPIs
     df['Producao_Liquida'] = df['Producao_Realizada'] - (df['Retrabalho'] + df['Refugo'])
     df['Pct_Atingimento_Meta'] = (df['Producao_Realizada'] / df['Meta']) * 100
     df['Pct_Retrabalho'] = (df['Retrabalho'] / df['Producao_Realizada']) * 100
     df['Pct_Refugo'] = (df['Refugo'] / df['Producao_Realizada']) * 100
     df['Eficiencia_Produtiva'] = (df['Producao_Liquida'] / df['Meta']) * 100
-    df['Gap_Producao'] = df['Meta'] - df['Producao_Realizada']
+    
+    # Criar coluna de data real para o filtro de calendário
+    df['Data_Filtro'] = pd.to_datetime(df['Dia'] + "/2026", format="%d/%m/%Y").dt.date
     
     return df
 
-# Carregar dados
 df = get_data()
 
-# --- ESTRUTURA DO DASHBOARD (STREAMLIT) ---
+# 3. BARRA LATERAL (FILTROS)
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/1063/1063231.png", width=100)
+st.sidebar.title("Configurações")
 
-st.title("🏭 Painel de Monitoramento de Produção")
-st.markdown("---")
+st.sidebar.subheader("📅 Período de Análise")
+data_min = df['Data_Filtro'].min()
+data_max = df['Data_Filtro'].max()
 
-# Filtro de Dia na Barra Lateral
-st.sidebar.header("Filtros")
-dias_selecionados = st.sidebar.multiselect(
-    "Selecione os dias para análise:",
-    options=df['Dia'].unique(),
-    default=df['Dia'].unique()
+# Seletor de Calendário (Intervalo)
+selecao_data = st.sidebar.date_input(
+    "Selecione o intervalo:",
+    value=(data_min, data_max),
+    min_value=data_min,
+    max_value=data_max
 )
 
-# Filtrar o DataFrame com base na seleção
-df_filtrado = df[df['Dia'].isin(dias_selecionados)]
+if st.sidebar.button("Resetar para Mês Inteiro"):
+    st.rerun()
 
-# Se nenhum dia for selecionado, mostrar aviso
-if df_filtrado.empty:
-    st.warning("Por favor, selecione pelo menos um dia na barra lateral.")
-    st.stop()
 
-# --- 1. CARTÕES DE KPIs (Totais Consolidados) ---
-st.subheader("📊 Indicadores de Desempenho")
+# --- LÓGICA DE FILTRAGEM  ---
+if isinstance(selecao_data, tuple) and len(selecao_data) == 2:
+    start_date, end_date = selecao_data
+    df_filtrado = df[(df['Data_Filtro'] >= start_date) & (df['Data_Filtro'] <= end_date)]
+else:
+    df_filtrado = df[df['Data_Filtro'] == selecao_data]
 
-# Cálculos Consolidados
-total_meta = df_filtrado['Meta'].sum()
+# --- VERIFICAÇÃO DE DADOS (ADICIONE AQUI) ---
+if not df_filtrado.empty:
+    
+    # 1. Coloque aqui os seus Cartões de KPIs (col1, col2...)
+    # 2. Coloque aqui o Gráfico de Evolução (col_a)
+    # 3. Coloque aqui o Gráfico de Pizza (col_b)
+    # 4. Coloque aqui a Análise Preditiva (col_c, col_d)
+    
+    # Exemplo rápido do conteúdo interno:
+    col1, col2, col3, col4 = st.columns(4)
+    # ... resto do código dos KPIs e Gráficos ...
+
+else:
+    # Caso o filtro não encontre nenhum dado
+    st.warning("⚠️ Nenhum dado encontrado para o período selecionado no calendário.")
+    st.info("Dica: Verifique se o intervalo selecionado possui registros de produção na base de dados.")
+
+# --- A TABELA PODE FICAR FORA OU DENTRO (Geralmente fora para depuração) ---
+st.markdown("---")
+with st.expander("📄 Visualizar Tabela de Dados"):
+    st.dataframe(df_filtrado, width='stretch')
+
+# 4. CORPO DO DASHBOARD
+st.title("🏭 Dashboard de Performance Industrial")
+st.markdown(f"Exibindo dados de **{selecao_data[0] if isinstance(selecao_data, tuple) else selecao_data}** até **{selecao_data[1] if isinstance(selecao_data, tuple) and len(selecao_data)==2 else '---'}**")
+
+# KPIs Consolidados
+col1, col2, col3, col4 = st.columns(4)
+
 total_realizado = df_filtrado['Producao_Realizada'].sum()
-total_liquido = df_filtrado['Producao_Liquida'].sum()
-total_retrabalho = df_filtrado['Retrabalho'].sum()
+total_meta = df_filtrado['Meta'].sum()
+avg_eficiencia = df_filtrado['Eficiencia_Produtiva'].mean()
 total_refugo = df_filtrado['Refugo'].sum()
-
-avg_atingimento = (total_realizado / total_meta) * 100 if total_meta > 0 else 0
-avg_retrabalho = (total_retrabalho / total_realizado) * 100 if total_realizado > 0 else 0
-avg_refugo = (total_refugo / total_realizado) * 100 if total_realizado > 0 else 0
-avg_eficiencia = (total_liquido / total_meta) * 100 if total_meta > 0 else 0
-
-# Layout em Colunas para Cartões
-col1, col2, col3, col4, col5 = st.columns(5)
-
-# Função para definir a cor com base no desempenho
-def get_color(value, target, is_loss=False):
-    if is_loss: # Para Retrabalho/Refugo (quanto menor, melhor)
-        return "normal" if value <= target else "inverse"
-    else: # Para Eficiência (quanto maior, melhor)
-        return "normal" if value >= target else "inverse"
+avg_retrabalho = (df_filtrado['Retrabalho'].sum() / total_realizado) * 100 if total_realizado > 0 else 0
 
 with col1:
-    st.metric(
-        label="Produção Realizada", 
-        value=f"{total_realizado:,.0f}", 
-        delta=f"{avg_atingimento:.1f}% da Meta",
-        help="Soma total de peças produzidas."  
-    )
-
+    st.metric("Produção Total", f"{float(total_realizado):,.0f}".replace(",", "."), f"{total_realizado - total_meta:,.0f} vs Meta")
 with col2:
-    # Definindo uma meta de exemplo para eficiência (ex: 85%)
-    cor_eficiencia = "off" if avg_eficiencia < 80 else "normal"
-    st.metric(
-        label="Eficiência Produtiva", 
-        value=f"{avg_eficiencia:.1f}%",
-        help="Produção Líquida / Meta total. Mostra a capacidade real aproveitada."
-    )
-
+    st.metric("Eficiência Líquida Média", f"{avg_eficiencia:.1f}%", delta=f"{avg_eficiencia - 85:.1f}%", delta_color="normal" if avg_eficiencia >= 85 else "inverse")
 with col3:
-    # Meta de exemplo para retrabalho (ex: max 5%)
-    st.metric(
-        label="Taxa de Retrabalho", 
-        value=f"{avg_retrabalho:.1f}%", 
-        delta=f"{total_retrabalho:,.0f} peças",
-        delta_color="off" if avg_retrabalho < 10 else "inverse",
-        help="Proporção de peças que precisaram ser refeitas."
-    )
-
+    st.metric("Taxa de Retrabalho", f"{avg_retrabalho:.1f}%", f"{df_filtrado['Retrabalho'].sum()} peças", delta_color="inverse")
 with col4:
-    st.metric(
-        label="Taxa de Refugo", 
-        value=f"{avg_refugo:.1f}%", 
-        delta=f"{total_refugo:,.0f} peças",
-        delta_color="off" if avg_refugo < 5 else "inverse",
-        help="Proporção de peças perdidas."
-    )
-
-with col5:
-    total_gap = total_meta - total_realizado
-    status_gap = "🔴Abaixo" if total_gap > 0 else "🟢Batida"
-    st.metric(
-        label="Status da Meta", 
-        value=status_gap, 
-        delta=f"{total_gap:,.0f} peças (Gap)" if total_gap > 0 else f"{abs(total_gap):,.0f} peças (Excesso)",
-        delta_color="inverse" if total_gap > 0 else "normal"
-    )
+    st.metric("Total de Refugo", f"{total_refugo}", "Peças descartadas", delta_color="inverse")
 
 st.markdown("---")
 
-# --- 2. GRÁFICOS DE ANÁLISE ---
-st.subheader("📈 Análise de Tendência e Comparação Diária")
+# 5. GRÁFICOS PRINCIPAIS
+col_a, col_b = st.columns([2, 1])
 
-col_left, col_right = st.columns([2, 1])
-
-with col_left:
-    st.write("**Evolução Diária: Produção Realizada vs Meta**")
-    # Usando Matplotlib para um gráfico mais customizado
-    fig, ax = plt.subplots(figsize=(10, 4))
-    sns.set_style("whitegrid")
-    
-    # Linha da Meta
-    ax.plot(df_filtrado['Dia'], df_filtrado['Meta'], label='Meta', color='#E74C3C', linestyle='--', linewidth=2)
-    
-    # Barras da Produção Realizada (com cor condicional básica)
-    colors = ['#2ECC71' if r >= m else '#F39C12' for r, m in zip(df_filtrado['Producao_Realizada'], df_filtrado['Meta'])]
-    ax.bar(df_filtrado['Dia'], df_filtrado['Producao_Realizada'], label='Realizado', color=colors, alpha=0.8)
-    
-    # Ajustes do Gráfico
-    ax.set_ylabel("Quantidade de Peças")
-    ax.set_title("Atingimento da Meta por Dia")
-    ax.legend()
+with col_a:
+    st.subheader("📈 Evolução Diária: Realizado vs Meta")
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    sns.lineplot(data=df_filtrado, x='Dia', y='Meta', label='Meta', color='red', linestyle='--')
+    sns.barplot(data=df_filtrado, x='Dia', y='Producao_Realizada', color='skyblue', label='Realizado', alpha=0.7)
     plt.xticks(rotation=45)
-    
+    plt.legend()
     st.pyplot(fig)
+    
 
-with col_right:
-    st.write("**Composição da Produção (Total)**")
-    # Gráfico de Rosca para Perdas
-    perdas_data = [total_liquido, total_retrabalho, total_refugo]
-    perdas_labels = ['Líquida', 'Retrabalho', 'Refugo']
-    perdas_colors = ['#2ECC71', '#F39C12', '#E74C3C']
+with col_b:
+    st.subheader("🎯 Qualidade Geral")
     
-    fig2, ax2 = plt.subplots(figsize=(5, 5))
-    ax2.pie(perdas_data, labels=perdas_labels, colors=perdas_colors, autopct='%1.1f%%', startangle=90, pctdistance=0.85, textprops={'fontsize': 10})
+    # Calculando os valores para o gráfico
+    valores = [df_filtrado['Producao_Liquida'].sum(), df_filtrado['Retrabalho'].sum(), df_filtrado['Refugo'].sum()]
+    labels = ['Líquida', 'Retrabalho', 'Refugo']
     
-    # Desenhar círculo branco no centro (efeito rosca)
-    centre_circle = plt.Circle((0,0),0.70,fc='white')
-    fig2.gca().add_artist(centre_circle)
-    
-    ax2.axis('equal')  
-    ax2.set_title("Qualidade da Produção")
-    
-    st.pyplot(fig2)
+    # SÓ DESENHA SE A SOMA FOR MAIOR QUE ZERO
+    if sum(valores) > 0:
+        fig2, ax2 = plt.subplots()
+        ax2.pie(valores, labels=labels, autopct='%1.1f%%', startangle=90, 
+                colors=['#2ecc71', '#f1c40f', '#e74c3c'], pctdistance=0.85)
+        
+        centre_circle = plt.Circle((0,0),0.70,fc='white')
+        fig2.gca().add_artist(centre_circle)
+        st.pyplot(fig2)
+    else:
+        st.warning("Sem dados de produção para o período selecionado.")
 
+# 6. ANÁLISE PREDITIVA (TEMPERATURA)
 st.markdown("---")
+st.subheader("⚠️ Análise Preditiva e Diagnóstico de Falhas")
 
-# --- 3. TABELA DETALHADA ---
-st.subheader("📄 Detalhamento dos Dados")
-with st.expander("Clique para visualizar os dados absolutos e percentuais diários"):
-    # Formatação da Tabela
-    st.dataframe(
-        df_filtrado.style.format({
-            'Meta': '{:,.0f}',
-            'Producao_Realizada': '{:,.0f}',
-            'Retrabalho': '{:,.0f}',
-            'Refugo': '{:,.0f}',
-            'Producao_Liquida': '{:,.0f}',
-            'Gap_Producao': '{:,.0f}',
-            'Pct_Atingimento_Meta': '{:.1f}%',
-            'Pct_Retrabalho': '{:.1f}%',
-            'Pct_Refugo': '{:.1f}%',
-            'Eficiencia_Produtiva': '{:.1f}%'
-        }).bar(subset=['Eficiencia_Produtiva'], color='#2ECC71', vmin=0, vmax=100)
-    )
+col_c, col_d = st.columns([1.5, 1])
 
-# --- 4. SEÇÃO DE INSIGHTS AUTOMÁTICOS ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("💡 Insights Rápidos")
+with col_c:
+    st.write("**Correlação: Temperatura vs. Perda por Refugo**")
+    fig3, ax3 = plt.subplots(figsize=(8, 4))
+    sns.scatterplot(data=df_filtrado, x='Temperatura_C', y='Pct_Refugo', hue='Turno_Principal', s=100)
+    ax3.axvline(x=85, color='red', linestyle='--', label='Limite de Calor')
+    plt.legend()
+    st.pyplot(fig3)
 
-if avg_eficiencia < 70:
-    st.sidebar.error(f"⚠️ Atenção! A eficiência líquida média ({avg_eficiencia:.1f}%) está baixa. Alto volume de perdas.")
+with col_d:
+    temp_media = df_filtrado['Temperatura_C'].mean()
+    st.write(f"**Status Térmico Médio:** {temp_media:.1f}°C")
+    
+    if temp_media > 85:
+        st.error("🚨 ALERTA CRÍTICO: Superaquecimento detectado no período selecionado. Risco alto de quebra de componentes.")
+    elif temp_media > 78:
+        st.warning("⚠️ AVISO: Temperatura acima do ideal. Verificar sistema de lubrificação/resfriamento.")
+    else:
+        st.success("✅ OPERAÇÃO ESTÁVEL: Temperatura dentro dos parâmetros de segurança.")
+    
+    st.info("💡 **Insight:** Historicamente, o Turno da Noite apresenta menor refugo devido à temperatura ambiente reduzida, facilitando a troca térmica das máquinas.")
 
-if avg_retrabalho > 10:
-    st.sidebar.warning(f"🟧 Alerta de Retrabalho: {avg_retrabalho:.1f}% das peças precisam ser refeitas. Verificar processo.")
-
-if total_gap > 0:
-    st.sidebar.info(f"📉 Gap Total: Faltam {total_gap:,.0f} peças para bater a meta acumulada.")
-else:
-    st.sidebar.success(f"✅ Parabéns! A meta acumulada foi superada em {abs(total_gap):,.0} peças.")
+# 7. TABELA DE DADOS
+st.markdown("---")
+with st.expander("📄 Visualizar Tabela de Dados Completa"):
+    st.dataframe(df_filtrado.drop(columns=['Data_Filtro']), width='stretch')
